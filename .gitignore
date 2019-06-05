@@ -3,6 +3,12 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+#customized
+
+*.pdf
+*.pickle
+__pycache__/*
+
 # C extensions
 *.so
 
