@@ -1,10 +1,13 @@
 {
-    "K": 100000,
+    "K": 10000,
     "number_of_families": 50,
-    "initial_rel_quantity_per_family": 0.005,
-    "initial_rel_quantity_of_disease": 0.1,
-    "t_max": 1000,
+    "number_of_loci": 50,
+    "gene_distribution":[500,10001,1000],
+    "initial_rel_quantity_per_family": 0.002,
+    "initial_rel_mutation_load": 0,
+    "t_max": 50000,
     "step": 1,
-    "inv_mutation_rate": 1000,
-    "mating_scheme": ["random"]
+    "inv_mutation_rate": "per bp",
+    "mating_scheme": ["dynasty",0.1],
+    "mutation_rate": 0.000000012
 }

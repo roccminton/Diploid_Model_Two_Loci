@@ -16,7 +16,9 @@ def trait_mutation_probability(model):
         word = model['inv_mutation_rate']
         regexp = re.compile(r'K\^\(\d|\d\)')
         
-        if word == 'K':
+        if word == 'per bp':
+            return model['mutation_rate']
+        elif word == 'K':
             return (model['K'])**(-1)
         elif word == 'Klog(K)':
             return (model['K']*np.log(model['K']))**(-1) 
@@ -31,7 +33,6 @@ def trait_mutation_probability(model):
                     )
     elif type(model['inv_mutation_rate']) == float or type(model['inv_mutation_rate']) == int:
         return 1/model['inv_mutation_rate']
-    
     else:
         raise TypeError("Unknow type for inverse mutation rate. {} is as {} not valid.".format(model['inv_mutation_rate'],type(model['inv_mutation_rate'])))
     
@@ -41,15 +42,17 @@ def trait_mutation(parent_trait,model):
     
     """
     #here mutation always gives the unfit rezessive trait
-    return 1
-    
+    if model['gene_distribution'] == 'unif':
+        return 1
+    else:
+        return parent_trait + 1
 
 def birth_rate(trait,model):
     """Calculates the birthrate for an individuum with given trait.
 
     """
-    if trait[2:4] != (1,1):
-        return 1/25
+    if trait[2]:
+        return 1/54.56
     else:
         return 0
 
@@ -58,7 +61,7 @@ def death_rate(trait,model):
 
     """
 
-    return 1/80
+    return 1/72.7
 
 def rep_comp(x,y,model):
     """Sets the reproductive compatibility of two individuals with genotypes x and y.
