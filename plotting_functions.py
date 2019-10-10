@@ -222,6 +222,6 @@ def get_rel_entropy_of_family_sizes(stats_by_time,index_low=0, index_high=None, 
         
     return data
             
-    
+
             
 

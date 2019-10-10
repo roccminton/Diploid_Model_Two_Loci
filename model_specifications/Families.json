@@ -1,13 +1,18 @@
 {
-    "K": 10000,
-    "number_of_families": 50,
+    "K_list": [50000],
+    "K_change":[],
+    "number_of_families_list": [10],
     "number_of_loci": 50,
-    "gene_distribution":[500,10001,1000],
-    "initial_rel_quantity_per_family": 0.002,
+    "gene_distribution":[500,10001,300],
+    "n_chromosome":23,
+    "initial_rel_quantity_per_family": 0.1,
     "initial_rel_mutation_load": 0,
-    "t_max": 50000,
+    "t_max": 70000,
     "step": 1,
     "inv_mutation_rate": "per bp",
-    "mating_scheme": ["dynasty",0.1],
-    "mutation_rate": 0.000000012
+    "mating_scheme": ["random"],
+    "mutation_rate": 0.000000012,
+    "rec_rate": 0.00000001,
+    "intrachromosomal_rec": "True",
+    "num_runs": 1
 }

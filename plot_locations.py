@@ -145,7 +145,7 @@ def plot_something_over_time_two_axis(data, plotting_dict1, plotting_dict2, t_0=
     
     #safe figure
     if not safe==None:
-        _safe_fig(safe,t_0,t_max)
+        _safe_fig(safe,t_0,t_max,step)
 
     plt.show()
    
@@ -163,7 +163,11 @@ def plot_something_over_time_three_axis(data, plotting_dict1, plotting_dict2, pl
     index_low, index_high = pf.set_time_index(t_0,t_max,stats_by_time)
 
     #Gives a sorted list of the timesteps
-    time = pf.get_data(stats_by_time,'time',index_low,index_high,step)
+#    time = pf.get_data(stats_by_time,'time',index_low,index_high,step)
+    time = list(range(index_low, index_high, step))
+    
+    #set x-lable to mating scheme
+    ax1.set_xlabel('Mating scheme: {}'.format(model['mating_scheme'][0]))
     
     #set color map
     colors = sns.color_palette('BrBG', len(plotting_dict1))
@@ -248,9 +252,139 @@ def plot_something_over_time_three_axis(data, plotting_dict1, plotting_dict2, pl
     
     #safe figure
     if not safe==None:
-        _safe_fig(safe,t_0,t_max)
+        _safe_fig(safe,t_0,t_max,step)
 
     plt.show()
+    
+def _add_average_line(ax,data,data_min,data_max,xmin,xmax,color='k'):
+    """Adds the average of the data list from data_min to data_max as a horizontal line
+    from xmin to xmax in the handed in color to the ax plot.
+    
+    """
+    average = _get_average(data,data_min,data_max)
+    ax.text(1/20,9/10,'{}'.format(round(average,2)),transform=ax.transAxes)
+    ax.hlines(average,xmin,xmax,color)
+
+def _get_average(data,data_min,data_max):
+    """Calculates the average of a list over an index range.
+    
+    """
+    
+    return sum(data[data_min:data_max])/len(data[data_min:data_max])
+
+def _get_averages_different_parameters(parameters_K_tmax,parameters_n_loci,data_type):
+    """Retruns a dictionary with (x,y):z entries where z is the averaged parameter.
+    
+    """
+    averages = {}
+    for K, t_max in parameters_K:
+        for n_loci in parameters_n_loci:
+            #    #set model parameters manually
+            model['K_list'] = [K]
+            model['t_max'] = t_max
+            model['number_of_loci'] = n_loci
+
+            #set the relativ path
+            rel_path = "out_analysis/data/statistic_{}(K={},nloci={},mating={},n_runs={}).pickle".format(
+                    model_name,
+                    model['K_list'],
+                    model['number_of_loci'],
+                    model['mating_scheme'],
+                    model['num_runs']
+                    )
+            # Load locations from pickle file
+            abs_file_path = os.path.join(script_dir, rel_path)
+            with open(abs_file_path, "rb") as in_file:
+                stats_by_time = pickle.load(in_file)
+                
+            averages[(K,n_loci)] = _get_average(pf.get_data_over_pop_size(stats_by_time,data_type),int(t_max/2),int(t_max))
+            
+    return averages
+
+def plot_averages(averages_dict,x_axis,safe=False):
+    """Plots the generated averages on the y axis and the different equ. pop_sizes on the 
+    x axis. Different n_loci are displayed as different colors if the x_axis lable is set to pop_size.
+    Instead if x_axis is n_loci it is the other way around.
+    
+    """
+    if x_axis == 'pop_size':
+        index = 0
+        color_palette = 'GnBu_d'
+        axis_title = "Equilibrium Population Size"
+        legend_title = 'Number of Genes'
+        tick_rotation = 30
+    elif x_axis == 'n_loci':
+        index = 1
+        color_palette = 'OrRd_d'
+        axis_title = "Number of Genes"
+        legend_title = 'Equilibrium Population Size'
+        tick_rotation = 'horizontal'
+    else:
+        raise ValueError('Handed in x Lable is unknown: {}'.format(x_axis))
+    
+    #setup the figure
+    fig, ax = plt.subplots(figsize=(9.0,6.0))
+    # Die obere und rechte Achse unsichtbar machen:
+    ax.spines['top'].set_color('none')
+    # Die untere Diagrammachse auf den Bezugspunkt '0' der y-Achse legen:
+    ax.spines['bottom'].set_position(('data',0))
+    #Titel setzten
+    ax.set_xlabel(axis_title)
+    ax.set_ylabel('Equilibrium Relative Mutation Load')
+    
+    #get the set of all parameters
+    parameter_set = set()
+    for K_and_n_loci in averages_dict.keys():
+        parameter_set.add(K_and_n_loci[1-index])
+        
+    #set color map
+    colors = sns.color_palette(color_palette, len(parameter_set))
+    ax.set_prop_cycle('color',colors)
+    
+    for parameter in sorted(list(parameter_set)):
+        
+        #build up the lists for the plot
+        xdata = []
+        ydata = []
+        
+        for K_and_n_loci, average in averages_dict.items():
+            if K_and_n_loci[1-index] == parameter:
+                xdata.append(K_and_n_loci[index])
+                ydata.append(average)
+                    
+        #add the plot to the figure
+        ax.plot(
+                xdata,
+                ydata,
+                label=parameter
+                )
+        
+    #set the x-axis ticks
+    #don't show the tick at pop_size 1000 because it is too close betwee 500-2000
+    #and would be covered by the sorrounding ticks
+    if x_axis == 'pop_size':
+        xdata.remove(1000)
+    plt.xticks(ticks=xdata,rotation=tick_rotation)
+
+    #show legend
+    ax.legend(
+            loc='upper left', 
+            bbox_to_anchor=(0,1),
+            fontsize=9,
+            edgecolor='k',
+            title = legend_title
+            )        
+    
+    if safe:
+        path = "Eq_Mutation_Load_vs_{}.pdf".format(x_axis)
+        #safe image 
+        plt.savefig(os.path.join(r'/home/larocca/Dokumente/Simulationen/Diploid_Model_Two_Loci/out_analysis/figures',
+                                     path))
+
+        
+    plt.show()
+        
+    
 
 def _plot_rel_quantity(stats_by_time,specification,time,index_low,index_high,step,ax):
     """Plos the relative quantity of *healty*,homogeneous/heterogeneous individuals in all homogeneous/heterogeneous
@@ -263,14 +397,16 @@ def _plot_rel_quantity(stats_by_time,specification,time,index_low,index_high,ste
     #setup label_nominator and label_denominator list for the plotting function
     label_nominator = _setup_label_list(h_nom,m_nom,stats_by_time,index_high)
     label_denominator = _setup_label_list(h_denom,m_denom,stats_by_time,index_high)
-        
+    
+    data = pf.get_rel_quantities(stats_by_time,label_nominator,label_denominator,index_low, index_high, step)
+            
     return ax.plot(
             time,
-            pf.get_rel_quantities(stats_by_time,label_nominator,label_denominator,index_low, index_high, step),
+            data,
             label = _get_label_from_specification(specification)
             )
         
-def _plot_abs_quantity(stats_by_time,specification,time,index_low,index_high,step,ax):
+def _plot_abs_quantity(stats_by_time,specification,time,index_low,index_high,step,ax,average_line=False):
     """Plos the relative quantity of *healty*,homogeneous/heterogeneous individuals in all homogeneous/heterogeneous
     individuals and the relative quantity of individuals carrying the illnes.
     
@@ -297,12 +433,24 @@ def _plot_data(stats_by_time,specification,time,index_low,index_high,step,ax):
         (data_type, label, color)
     
     """
-    data_type, label, color, marker = specification
+    data_type, label, color, marker, average_line = specification
+    
+    data = pf.get_data(stats_by_time,data_type,index_low,index_high,step)
+    
+    if average_line:
+        _add_average_line(
+                ax,
+                data,
+                int(len(data)/2),
+                int(len(data)),
+                time[0],
+                time[-1])               
+
     
     #Plot data line over time in given color
     return ax.plot(
             time,
-            pf.get_data(stats_by_time,data_type,index_low,index_high,step),
+            data,
             label=label,
             color=color,
             marker=marker,
@@ -316,12 +464,24 @@ def _plot_data_over_pop_size(stats_by_time,specification,time,index_low,index_hi
         (data_type, label, color)
     
     """
-    data_type, label, color, marker = specification
+    data_type, label, color, marker, average_line = specification
+    
+    data = pf.get_data_over_pop_size(stats_by_time,data_type,index_low,index_high,step)
+    
+    if average_line:
+        _add_average_line(
+                ax,
+                data,
+                int(len(data)/2),
+                len(data),
+                time[0],
+                time[-1])               
+
     
     #Plot data line over time in given color
     return ax.plot(
             time,
-            pf.get_data_over_pop_size(stats_by_time,data_type,index_low,index_high,step),
+            data,
             label=label,
             color=color,
             marker=marker,
@@ -385,7 +545,7 @@ def _get_label_from_specification(specification):
         if len(specification) == 2:
             if specification[0] == 'total':
                 if specification[1] == 'total':
-                    return '# total population'
+                    return 'total population'
                 elif specification[1] == '>0':
                     return '# of carrier of the disease'
                 elif type(specification[1]) == int: 
@@ -514,7 +674,7 @@ def _get_word_from_integer(n):
     else:
         raise ValueError('Cannot convert {} into word'.format(n))
         
-def _safe_fig(title,t_0,t_max):
+def _safe_fig(title,t_0,t_max,step):
     """Safes the figure with the respective title.
     
     """
@@ -527,13 +687,17 @@ def _safe_fig(title,t_0,t_max):
     else:
         raise ValueError('Mating scheme *{}* in _safe_fig unknown.'.format(model['mating_scheme'][0]))
             
-    initial_state = '({}x{},{})'.format(model['number_of_families'],int(model['K']*model['initial_rel_quantity_per_family']),int(model['K']*model['initial_rel_mutation_load']))
-    path = "{}_{}(K={},x_0={},p^(-1)={}".format(title,mating_scheme,model['K'],initial_state,model['inv_mutation_rate'])
+#    initial_state = '({}x{},{})'.format(model['number_of_families'],int(model['K_list'][0]*model['initial_rel_quantity_per_family']),int(model['K_list'][0]*model['initial_rel_mutation_load']))
+    path = "{}_{}(K={},n_loci={}".format(title,mating_scheme,model['K_list'],model['number_of_loci'])
     
     if t_0>0:
         path += ',t_0={}'.format(t_0)
-    if t_max != None:
-        path += ',t_max={}'.format(t_max)
+#    if t_max != None:
+#        path += ',t_max={}'.format(t_max)
+    if model['num_runs'] != 0:
+        path += ',n_run={}'.format(model['num_runs'])
+    if step != 1:
+        path += ',step={}'.format(step)
         
     path += ').pdf'
     #safe image 
@@ -552,47 +716,50 @@ if __name__ == "__main__":
     abs_file_path = os.path.join(script_dir, rel_path)
     model = json.load(open(abs_file_path), encoding="utf-8")
     
-#    #set model parameters manually
-#    model['K'] = 100000
-#    model['initial_rel_mutation_load'] = 0.0517
-#    model['initial_rel_quantity_per_family'] = 0.0002
-#    model['inv_mutation_rate'] = 1200
-    model['mating_scheme'] = ['random']
-    model['t_max'] = 10000
-    model['number_of_loci'] = 1000
+    #setup the gene distribution if necessary
+    if type(model['gene_distribution']) == list:
+        model['number_of_loci'] = model['gene_distribution'][-1]
+
+    parameters_K = [
+            (500,10000),
+            (1000,15000),
+            (2000,20000),
+            (5000,25000),
+            (10000,30000),
+            (20000,35000),
+            (50000,70000)]
     
-    # Load locations from pickle file
-    rel_path = "out_analysis/data/statistic_{}(K={},nloci={},x_0=({}x{},{}),p^(-1)={},mating={}).pickle".format(
+    parameters_n_loci = [300,500,1000,1500,2000,2500,3000]
+    
+#    #set model parameters manually
+    model['K_list'] = [10000]
+    model['t_max'] = 30000
+#    model['initial_rel_mutation_load'] = 12
+#    model['initial_rel_quantity_per_family'] = 0.0002
+#    model['inv_mutation_rate'] = 'per bp'
+#    model['mating_scheme'] = ['western',0.01]
+#    model['mating_scheme'] = ['dynasty',0.1]
+    model['mating_scheme'] = ['random']
+    model['num_runs'] = 1
+    model['number_of_loci'] = 1500    
+    
+    #set the relativ path
+    rel_path = "out_analysis/data/statistic_{}(K={},nloci={},mating={},n_runs={}).pickle".format(
             model_name,
-            model['K'],
+            model['K_list'],
             model['number_of_loci'],
-            model['number_of_families'],
-            int(model['K']*model["initial_rel_quantity_per_family"]),
-            int(model['K']*model["initial_rel_mutation_load"]),
-            model['inv_mutation_rate'],
-            model['mating_scheme']
+            model['mating_scheme'],
+            model['num_runs']
             )
+    # Load locations from pickle file
     abs_file_path = os.path.join(script_dir, rel_path)
     with open(abs_file_path, "rb") as in_file:
         stats_by_time = pickle.load(in_file)
-
+                
     #import model specific functions such as birthrate, mutation operator and probabilities, etc.
     spc = importlib.import_module('model_specifications.{}'.format(model_name))
     
-    plot_dict_abs = {
-            ('total','total'):_plot_abs_quantity,
-#            ('total','>0'):_plot_abs_quantity,
-#            ('total',3):_plot_abs_quantity,
-#            ('total',2):_plot_abs_quantity,
-#            ('total',1):_plot_abs_quantity,
-#            ('total',0):_plot_abs_quantity,
-#            ('homo', 'total'):_plot_abs_quantity,
-#            ('homo', 1):_plot_abs_quantity,
-#            ('homo', 0):_plot_abs_quantity,
-#            ('hetero','total'):_plot_abs_quantity,
-#            ('hetero',1):_plot_abs_quantity,
-#            ('hetero',0):_plot_abs_quantity,
-            }
+    plot_dict_abs = {('total','total'):_plot_abs_quantity}
     
     plot_dict_rel = {
 #            ('total',4,'total','total'):_plot_rel_quantity,            
@@ -600,7 +767,7 @@ if __name__ == "__main__":
 #            ('total',2,'total','total'):_plot_rel_quantity,
 #            ('total',1,'total','total'):_plot_rel_quantity,
             ('total','>0','total','total'):_plot_rel_quantity,
-            ('homo','total','total','total'):_plot_rel_quantity,
+#            ('homo','total','total','total'):_plot_rel_quantity,
 #            ('homo',1,'total','total'):_plot_rel_quantity,
 #            ('homo',1,'homo','total'):_plot_rel_quantity,
 #            ('homo',1,'total',1):_plot_rel_quantity,
@@ -618,23 +785,42 @@ if __name__ == "__main__":
     
     plot_dict_data = {
 #            ('mutation_load','Mutation load','r'):_plot_data,
-            ('number_false', 'Number of ill individual','peru',None):_plot_data,
+#            ('number_false', 'Number of ill individual','orange',None):_plot_data,
 #            ('number_of_types','Number of different family-types','g',None): _plot_data,
 #            ('mutation_counter', 'Total umber of mutation','g'):_plot_data,
-#             ('active_families','# families alive','lightgrey'):_plot_data,
+             ('active_families','# families alive','lightgrey',None):_plot_data,
             }
     
-    plot_dict_data_rel = {
-            ('mutation_load','Relative mutation load','r',None):_plot_data_over_pop_size,
-            ('bla','Relative Entropy of family sizes','b',None):_plot_rel_entropy,
+    # key : data_type, label, color, marker, average_line // value : function
+    plot_dict_data_rel2 = {
+            ('mutation_load','Relative mutation load','r',None,True):_plot_data_over_pop_size,
+#            ('bla','Relative Entropy of family sizes','b',None):_plot_rel_entropy,
             }
-
+    
+    plot_dict_data_rel1 = {
+            ('number_false','% of ill individual','orange',None,False):_plot_data_over_pop_size,
+#            ('bla','Relative Entropy of family sizes','b',None):_plot_rel_entropy,
+            }
+#choose title
 #    title = 'rel_entropy'
 #    title='%_indv_mut_load'
-#    title='mutation_load'
-    title = 'ill_individal'
+    title='ill_individual_mutation_load_with_rec'
+#    title = 'family_types_entropy'
+#    title = 'hom_het'
     
-    plot_something_over_time_three_axis(stats_by_time,plot_dict_abs,plot_dict_data,plot_dict_data_rel,safe=title,t_max=5000)
-#    plot_something_over_time_two_axis(stats_by_time,plot_dict_data,plot_dict_data_rel)
+    tmax, stepp = None, 1
+#    tmax, stepp = 2500, 1
+    
+#    plot_something_over_time_three_axis(stats_by_time,plot_dict_abs,plot_dict_data_rel1,plot_dict_data_rel2,safe=title)
+#    plot_something_over_time_two_axis(stats_by_time,plot_dict_data,plot_dict_data_rel1,safe=title)
 #    plot_something_over_time_one_axis(stats_by_time,plot_dict_data_rel)
-#    plot_something_over_time_one_axis(stats_by_time,plot_dict_abs,t_max=300)    
+#    plot_something_over_time_one_axis(stats_by_time,plot_dict_abs)   
+    
+#    averages = _get_averages_different_parameters(parameters_K,parameters_n_loci,'mutation_load')
+    
+    print('Done loading data')
+    
+    #Or "n_loci" or "pop_size"
+    plot_averages(averages,"n_loci",safe=True)
+    
+    print('Done plotting')
