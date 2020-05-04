@@ -69,6 +69,7 @@ def rep_comp(x,y,model):
     different types.
     
     """
+    #DYNASTY
     if model['mating_scheme'][0] == 'dynasty':
         for family in x[0:2]:
             #at least one match (aa-aa, aa-ab, ab-ab, ab-ac)
@@ -76,19 +77,42 @@ def rep_comp(x,y,model):
                 return 1
         #no match
         return model['mating_scheme'][1]
-    
-    if model['mating_scheme'][0] == 'western':
+   
+    #WESTERN
+    elif model['mating_scheme'][0] == 'western':
         for family in x[0:2]:
             #at least one match (aa-aa, aa-ab, ab-ab, ab-ac)
             if family in y[0:2]:
                 return model['mating_scheme'][1]
         #no match
         return 1
-
     
+    #RANDOM
     elif model['mating_scheme'][0] == 'random':
         return 1
     
+    #CONSANGUIN
+    elif model['mating_scheme'][0] == 'consang':
+        #perfect match
+        if x[0:2] == y[0:2]:
+            return model['mating_scheme'][1]
+        #one homogeneous and one half
+        elif (x[0]==x[1] or y[0]==y[1]) and (x[0]==y[0] or x[0]==y[1] or x[1]==y[0]):
+            return model['mating_scheme'][2]
+        #at least one match
+        elif x[0]==y[0] or x[0]==y[1] or x[1]==y[0] or x[1]==y[1]:
+            return model['mating_scheme'][3]
+        #no match at all
+        else:
+            return model['mating_scheme'][4]
+        
+    #%IN_OUT_FAMILY
+    elif model['mating_scheme'][0] == '%in_out_family':
+        if x[0:2] == y[0:2]:
+            return model['mating_scheme'][1]/model['number_of_families_list'][model['index_change']]
+        else:
+            return model['mating_scheme'][2]/(model['K_list'][model['index_change']]-model['number_of_families_list'][model['index_change']])
+
     else:
         raise KeyError('*{}* is no valid mating scheme in the *.json file'.format(model['mating_scheme'][0]))
     

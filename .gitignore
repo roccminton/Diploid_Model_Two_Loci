@@ -5,6 +5,9 @@ __pycache__/
 
 #customized
 
+*.png
+*.dat
+*.odp
 *.pdf
 *.pickle
 __pycache__/*

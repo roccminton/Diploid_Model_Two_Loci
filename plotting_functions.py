@@ -57,9 +57,9 @@ def get_abs_quantities(stats_by_time,label_list,index_low=0, index_high=None, st
     
     The label must be one of (homo,n),(homo,n), for any integer n.    
     """
-    for label in label_list:
-        if label[0] not in ['homo','hetero'] or type(label[1]) != int or label[1] < 0 :
-            raise KeyError('The handed in label {} in plotting_funcions.py is invalid'.format(label))
+#    for label in label_list:
+#        if label[0] not in ['homo','hetero'] or type(label[1]) != int or label[1] < 0 :
+#            raise KeyError('The handed in label {} in plotting_funcions.py is invalid'.format(label))
     
     if index_high == None:
         index_high = len(stats_by_time)

@@ -9,7 +9,7 @@ In this way it is easy to extend the simulations to other model specifications i
 
 
 """
-
+import sys
 import json
 import pickle
 import importlib
@@ -139,16 +139,16 @@ def setup_population():
                 break
     
     #Setup the initial total birth and death rates per species with respective population sizes
-    initial_birth_rates = {x_0: spc.birth_rate(x_0,model)*initial_trait_dic[x_0][0] for x_0 in initial_trait_dic.keys()}
-    initial_death_rates = {x_0: spc.death_rate(x_0,model)*initial_trait_dic[x_0][0] for x_0 in initial_trait_dic.keys()}
+    initial_birth_rates = {x_0: birth_rate(x_0,model)*initial_trait_dic[x_0][0] for x_0 in initial_trait_dic.keys()}
+    initial_death_rates = {x_0: death_rate(x_0,model)*initial_trait_dic[x_0][0] for x_0 in initial_trait_dic.keys()}
     
     #Setup the initial compatibility per species including the additional death term for competition
     initial_compatibility_rates = {}
 
     for trait1 in initial_trait_dic.keys():
-        initial_compatibility_rates[trait1] = {x_0: spc.birth_rate(x_0,model)*spc.rep_comp(trait1,x_0,model)*initial_trait_dic[x_0][0] for x_0 in initial_trait_dic.keys()}
+        initial_compatibility_rates[trait1] = {x_0: birth_rate(x_0,model)*spc.rep_comp(trait1,x_0,model)*initial_trait_dic[x_0][0] for x_0 in initial_trait_dic.keys()}
         for trait2 in initial_trait_dic.keys():
-            initial_death_rates[trait1] += (initial_trait_dic[trait1][0]/model['K'])*spc.competition(trait1,trait2,model)*initial_trait_dic[trait2][0]
+            initial_death_rates[trait1] += (initial_trait_dic[trait1][0]/model['K'])*competition(trait1,trait2,model)*initial_trait_dic[trait2][0]
                         
     #Initialize the initial statistic
     count = {
@@ -172,7 +172,7 @@ def choose_species(rates):
     probabilities to be chosen as values.
     
     """
-    rnd = random.random() * sum(rates.values())
+    rnd = random.random() * np.sum(list(rates.values()))
     for trait, rate in rates.items():
         rnd -= rate
         if rnd <= 0:
@@ -187,7 +187,7 @@ def choose_locus(gene_distribution):
     if gene_distribution == 'unif':
         return random.choice(list(range(model['number_of_loci'])))
     elif type(gene_distribution) == list:
-        rnd = np.random.random_sample() * sum(gene_distribution)
+        rnd = np.random.random_sample() * np.sum(gene_distribution)
         for index, lenght in enumerate(gene_distribution):
             rnd -= lenght
             if rnd <= 0:
@@ -235,7 +235,7 @@ def update_competition_and_compatibility(trait,event,manual_k=0):
             death_rates[trait] += C*competition(trait,other_trait,local_model)
             death_rates[other_trait] += C*competition(other_trait,trait,local_model)
         #update compatibility rate
-        compatibility_rates[other_trait][trait] += k*spc.birth_rate(trait,local_model)*spc.rep_comp(other_trait,trait,local_model)
+        compatibility_rates[other_trait][trait] += k*birth_rate(trait,local_model)*spc.rep_comp(other_trait,trait,local_model)
     
     if event != "split":    
         #since the species size for the handed in trait was updated before we need to substrainitial_birth_rates[x_0ct the overrun
@@ -279,9 +279,25 @@ def update_summerized_statistic(family_trait,mutation_load,k):
             raise ValueError('Handed in parameter k={} in update_summerized_statistic is invalid'.format(k))
         raise ValueError('The key {} in the update_summerized_statistic during a {} event is invalid.'.format(family_trait,event))
 
-    
+# define the functions competition, birth and death rate locally s.th. if these rates are independent
+# of the trait one can use the local variables
 def competition(x,y,model):
-    return spc.competition(x,y,model)
+    if model['competition']:
+        return spc.competition(x,y,model)
+    else:
+        return ind_competition
+    
+def birth_rate(x,model):
+    if model['competition']:
+        return spc.birth_rate(x,model)
+    else:
+        return ind_birth_rate
+    
+def death_rate(x,model):
+    if model['competition']:
+        return spc.death_rate(x,model)
+    else:
+        return ind_death_rate
 
 def execute_mutation(allele_config):
     """Executes a mutation at the handed in parent trait and returns the new trait.
@@ -319,9 +335,8 @@ def intrachromosomal_recombination(allele_configuration):
     #maternal or paternal chromosome, depending on the choice sequence
     for counter, chromosome_choice in enumerate(choice_sequence):
         new_allele_configuration += allele_configuration[chromosome_choice][model['chromosome_cuts'][counter]:model['chromosome_cuts'][counter+1]]
-    
+
     return new_allele_configuration
-    
     
 def birth(birth_time, birth_rates):
     """ Returns the summerized statistics *count* after a new child was born at the handed in time
@@ -340,7 +355,12 @@ def birth(birth_time, birth_rates):
     
     #random choice of parental family alleles
     choose_family_allele = np.random.randint(2, size=2)
-    new_family_trait = tuple(sorted((parent_family_trait[choose_family_allele[0]],partner_family_trait[choose_family_allele[1]])))
+    #if the family trait of the parents is identical, than the child just inherits the same trait
+    #otherwise the new family trait of the child is a random mixture of the parental traits
+    if parent_family_trait == partner_family_trait:
+        new_family_trait = parent_family_trait[0:2]
+    else:
+        new_family_trait = tuple(sorted((parent_family_trait[choose_family_allele[0]],partner_family_trait[choose_family_allele[1]])))
     
     #choose parents and partners allele configuration according to their frequency 
     parent_allele_config = choose_species(count['trait'][parent_family_trait][1])
@@ -349,9 +369,10 @@ def birth(birth_time, birth_rates):
     #if intrachromosomal recombination is turned on reshuffel the maternal and paternal chromosomes
     if model['intrachromosomal_rec'] == "True":
         #interchromosomal recombination between maternal and paternal information
-        parent_allele_config = intrachromosomal_recombination(parent_allele_config)
-        partner_allele_config = intrachromosomal_recombination(partner_allele_config)
-        new_allele_config = tuple(sorted((parent_allele_config,partner_allele_config)))
+        new_allele_config = tuple(sorted((
+                intrachromosomal_recombination(parent_allele_config),
+                intrachromosomal_recombination(partner_allele_config)
+                )))
     #if recombination is off, than just choose at random one of the two chromosome sets
     elif model['intrachromosomal_rec'] == "False":
         #random choice of parental allele combinations (without recombination)
@@ -401,20 +422,20 @@ def birth(birth_time, birth_rates):
                 key = new_allele_config,
                 add = 1
                 )
-        count['birth_rates'][new_family_trait] += spc.birth_rate(new_family_trait,model)
-        count['death_rates'][new_family_trait] += spc.death_rate(new_family_trait,model)    
+        count['birth_rates'][new_family_trait] += birth_rate(new_family_trait,model)
+        count['death_rates'][new_family_trait] += death_rate(new_family_trait,model)    
     else:
         count['trait'][new_family_trait] = [
                 1,
                 {new_allele_config:1}
                 ]
-        count['birth_rates'][new_family_trait] = spc.birth_rate(new_family_trait,model)
-        count['death_rates'][new_family_trait] = spc.death_rate(new_family_trait,model)
+        count['birth_rates'][new_family_trait] = birth_rate(new_family_trait,model)
+        count['death_rates'][new_family_trait] = death_rate(new_family_trait,model)
         #setup a new dictionary entry for the newly arrived trait
         count['compatibility_rates'][new_family_trait] = {}
         for other_trait in count['trait'].keys():
             #setup the new register in the compatibility matrix, but substract one factor, since it will be updated again in the next step
-            count['compatibility_rates'][new_family_trait][other_trait] = spc.birth_rate(other_trait,model)*spc.rep_comp(new_family_trait,other_trait,model)*(count['trait'][other_trait][0]-1)
+            count['compatibility_rates'][new_family_trait][other_trait] = birth_rate(other_trait,model)*spc.rep_comp(new_family_trait,other_trait,model)*(count['trait'][other_trait][0]-1)
             count['compatibility_rates'][other_trait][new_family_trait] = 0
         
     #update summerized statistics
@@ -456,8 +477,8 @@ def death(death_time, death_rates):
     count['time'] += death_time
 
     #birth and death rates are reduced
-    count['birth_rates'][fey_family_trait] -= spc.birth_rate(fey_family_trait,model)
-    count['death_rates'][fey_family_trait] -= spc.death_rate(fey_family_trait,model)
+    count['birth_rates'][fey_family_trait] -= birth_rate(fey_family_trait,model)
+    count['death_rates'][fey_family_trait] -= death_rate(fey_family_trait,model)
     
     #Update competition pressure in whole population
     #needs to be done after decreasing the species size
@@ -509,11 +530,11 @@ def next_event_time():
     #if the all birth or death rates happen to be zero setz the first birth resp. death time to infinity
     #if both, all birth AND all death rates are zero somehow the evolution stopped and return a break command to the main loop
     try:
-        first_birth_time = np.random.exponential(sum(birth_rates.values())**(-1))
+        first_birth_time = np.random.exponential((np.sum(list(birth_rates.values())))**(-1))
     except ZeroDivisionError:
         first_birth_time = np.inf
     try:
-        first_death_time = np.random.exponential(sum(death_rates.values())**(-1))
+        first_death_time = np.random.exponential(np.sum(list(death_rates.values()))**(-1))
     except ZeroDivisionError:
         first_death_time = np.inf
         
@@ -586,7 +607,7 @@ def extract_summerized_statistics():
             'active_families': len(count['active_families']),
             'mutation_counter': count['mutation_counter'],
             'mutation_load': count['mutation_load'],
-            'number_false' : sum([count['trait'][family_trait][0] for family_trait in filter(lambda key: key[2]==False, count['trait'].keys())]),
+            'number_false' : np.sum([count['trait'][family_trait][0] for family_trait in filter(lambda key: key[2]==False, count['trait'].keys())]),
             'number_of_types':len(count['trait']),
             'fam_distribution': fam_distribution
             }
@@ -655,8 +676,11 @@ def _ind_mut_load(allele_config):
     
     
     """
-    #convert the tuple of tuples -> tuple -> sum
-    return sum(sum(allele_config, ()))
+    if type(allele_config)==int:
+        return allele_config
+    else:
+        #convert the tuple of tuples -> tuple -> sum
+        return np.sum(np.sum(allele_config, ()))
 
 def K_change(time,k,k_changes):
     """Gives the carrying capacity with respect to the time. 
@@ -671,6 +695,7 @@ def K_change(time,k,k_changes):
         k_changes += 1
         k = model['K_list'][k_changes]
         model['number_of_families'] = model['number_of_families_list'][k_changes]
+        model['index_change'] = k_changes
         return k, k_changes
     else:
         return k, k_changes
@@ -685,7 +710,7 @@ def _chromosome_cuts(gene_distribution,n_chromosome):
     Note that all but the last chromosome will be bigger than the average chromosome size.
     
     """
-    average_chromosome_length = sum(gene_distribution)/n_chromosome
+    average_chromosome_length = np.sum(gene_distribution)/n_chromosome
 
     run = 0
     cuts = [0]
@@ -698,55 +723,38 @@ def _chromosome_cuts(gene_distribution,n_chromosome):
     
     cuts.append(len(gene_distribution)+1)
     
+    #if the variance in the number of genes is to high s.th. the above method fails just 
+    #choose the cuts at random without considering the resp. size of the pices
     if len(cuts) != n_chromosome + 1:
-        raise KeyError("Chromosome cuts went wrong. Got {} chromosomes instead of {}.".format(len(cuts)-1,n_chromosome))
-    
+        cuts = [0] + random.sample(range(1,len(gene_distribution)),n_chromosome-1) + [len(gene_distribution)+1]
+            
     return cuts
 
-def _divide_dictionary_into_two_at_random(dictionary,total_sum=None):
+def _divide_dictionary_into_two_at_random(dictionary):
     """Iterates over all the values in the dictionary and returns the index of the entry
     where the sum of the values before and after the index are almost equal. Additionaly 
     return the sum of the first half.
     
     """
-    if total_sum == None:
-        total_sum = sum(dictionary.values())
-    elif total_sum == sum(dictionary.values()):
-        #set the approx size of each halfe of the dictionaries
-        total_sum = total_sum // 2
-        #safe the list of keys of the dictionary
-        keys = list(dictionary.keys())
-        #and reshuffle them in a random order
-        random.shuffle(keys)
-        #make a copy of the dictionary and modify both simultaniously
-        second_dict = copy.deepcopy(dictionary)
-        #iterate over every key and split the dictionaries a part
-        for key in keys:
-            if total_sum > 0:
-                size = np.random.binomial(min(total_sum,dictionary[key]),1/2)
-#                if dictionary[key] == 1:
-#                    size = np.random.binomial(min(total_sum,dictionary[key]),1/2)
-#                else: 
-#                    size = dictionary[key] // 2
-                second_size = dictionary[key]-size
-                _substract_and_check_if_empty(
-                        dictionary=dictionary,
-                        key=key,
-                        sub=size)
-                _substract_and_check_if_empty(
-                        dictionary=second_dict,
-                        key=key,
-                        sub=second_size)
-                total_sum -= size
-            else:
-                del dictionary[key]
-        return dictionary, second_dict     
-    else:
-        raise ValueError('Handed in sum of the dictionaries values ({}) does not match the real sum ({})'.format(
-                total_sum,
-                sum(dictionary.values())))
+    #check at the end if the total sum of the dictionaries match
+    total_sum = np.sum(list(dictionary.values()))
+    #repeat random splitting if one of the dictionaries appears to sum to zero
+    sum_new_dict = 0
+    while sum_new_dict == 0 or sum_new_dict == total_sum:
+        new_dict = {x:np.random.binomial(y,1/2) for x,y in dictionary.items()}
+        sum_new_dict = np.sum(list(new_dict.values()))
     
+    #update the old dictionary by substracting the value of the new dictionary from every key    
+    dictionary = {x:dictionary[x]-new_dict[x] for x in dictionary.keys() if dictionary[x]-new_dict[x] != 0}
+    #deleting all the zero valued entries from the new_dictionary
+    new_dict = {x:y for x,y in new_dict.items() if y != 0}
+    
+    if total_sum != np.sum(list(dictionary.values()))+np.sum(list(new_dict.values())):
+        raise ValueError('Invalide splitting of dictionary. {} not equal {} + {}.'.format(total_sum,dictionary.values(),new_dict.values()))
+    
+    return dictionary, new_dict
 
+    
 def check_family_sizes():
     """Runs over every family entry, checks the number of individuals and if the families
     become to large split them up in new, homogene families.
@@ -770,29 +778,21 @@ def check_family_sizes():
             old_family_size = count['trait'][trait][0]
             
             #create two new dictionaries for the new types with half the enties each 
-            old_key_dict, new_key_dict = _divide_dictionary_into_two_at_random(count['trait'][trait][1],total_sum=old_family_size)
+            old_key_dict, new_key_dict = _divide_dictionary_into_two_at_random(count['trait'][trait][1])
             
             #set the new family trait
             new_trait = (model['latest_family_index']+1,model['latest_family_index']+1,trait[2])
             
             #safe sizes of new families
-            old_part = sum(old_key_dict.values())
-            new_part = sum(new_key_dict.values())
-            
-            #check if one family size is zero
-            if old_part == 0 or new_part == 0:
-                raise ValueError('Invalid splitting of family {} into {} and {}.'.format(trait,old_part,new_part))
-           
-            #check if total size hasn't changed
-            if old_part + new_part != old_family_size:
-                raise ValueError('Somebody was left behind or countet twice during split of family. Population size before {} after {} split.'.format(old_family_size,old_part + new_part))
-            
+            old_part = np.sum(list(old_key_dict.values()))
+            new_part = np.sum(list(new_key_dict.values()))
+                                   
             #save both new types 
             count['trait'][trait] = [old_part, old_key_dict]
             count['trait'][new_trait] = [new_part, new_key_dict]
             
-            total_birth_rate = sum(count['birth_rates'].values())
-            total_death_rate = sum(count['death_rates'].values())
+            total_birth_rate = np.sum(list(count['birth_rates'].values()))
+            total_death_rate = np.sum(list(count['death_rates'].values()))
             
             #update birth and deathrates 
             #notice that competition rates for the other families does not have to be updated
@@ -803,7 +803,7 @@ def check_family_sizes():
             count['death_rates'][new_trait] = old_death_rate*(new_part/old_family_size)
             
             #setup a new compatibility rates dictionary for new_trait with the old rates
-            count['compatibility_rates'][new_trait] = {x_0: spc.birth_rate(x_0,model)*spc.rep_comp(new_trait,x_0,model)*count['trait'][x_0][0] for x_0 in count['trait'].keys()}
+            count['compatibility_rates'][new_trait] = {x_0: birth_rate(x_0,model)*spc.rep_comp(new_trait,x_0,model)*count['trait'][x_0][0] for x_0 in count['trait'].keys()}
             for other_trait_dict in count['compatibility_rates'].values():
                 other_trait_dict[new_trait] = 0
             
@@ -812,10 +812,10 @@ def check_family_sizes():
             update_competition_and_compatibility(new_trait,"split",manual_k=new_part)
             
             #check if birth and death rates have been updated correctly
-            if round(total_birth_rate,2) != round(sum(count['birth_rates'].values()),2):
-                raise ValueError('Total birthrate has changed from {} to {}.'.format(total_birth_rate,sum(count['birth_rates'].values())))
-            if round(total_death_rate,2) != round(sum(count['death_rates'].values()),2):
-                raise ValueError('Total death rate has changed from {} to {}.'.format(total_death_rate,sum(count['death_rates'].values())))
+            if round(total_birth_rate,2) != round(np.sum(list(count['birth_rates'].values())),2):
+                raise ValueError('Total birthrate has changed from {} to {}.'.format(total_birth_rate,np.sum(list(count['birth_rates'].values()))))
+            if round(total_death_rate,2) != round(np.sum(list(count['death_rates'].values())),2):
+                raise ValueError('Total death rate has changed from {} to {}.'.format(total_death_rate,np.sum(list(count['death_rates'].values()))))
 
             #extract mutation load dictionaries
             old_mutation_load_dict = _extract_mutation_load_dict(trait_dict=old_key_dict)
@@ -830,10 +830,7 @@ def check_family_sizes():
             #update latest family index
             model['latest_family_index'] += 1
             #update list of active families
-            count['active_families'].append(model['latest_family_index'])
-            
-            
-            
+            count['active_families'].append(model['latest_family_index'])                      
 
 def _extract_mutation_load_dict(trait=None,trait_dict=None):
     """Extracts the mutatio load dictionary from the dictionary *count['trait']* with the handed
@@ -861,8 +858,8 @@ def _extract_mutation_load_dict(trait=None,trait_dict=None):
                                      add=size
                                      )
     #check if sizes fit
-    if sum(dictionary.values()) != sum(mutation_load_dict.values()):
-        raise ValueError("There ist a mistake in the _extract_mutation_load_function. {] nicht gleich {}.".format(sum(dictionary.values()),sum(mutation_load_dict.values())))
+    if np.sum(list(dictionary.values())) != np.sum(list(mutation_load_dict.values())):
+        raise ValueError("There ist a mistake in the _extract_mutation_load_function. {] nicht gleich {}.".format(np.sum(list(dictionary.values())),np.sum(list(mutation_load_dict.values()))))
     
     return mutation_load_dict
 
@@ -870,8 +867,8 @@ def debug_population_size():
     """Checks if the population size is updated correctly.
     
     """
-    sum_over_traits = sum(count['trait'][x_0][0] for x_0 in count['trait'].keys())
-    sum_over_pop_state = sum(count['pop_state'].values())
+    sum_over_traits = np.sum([count['trait'][x_0][0] for x_0 in count['trait'].keys()])
+    sum_over_pop_state = np.sum(list(count['pop_state'].values()))
     
     if sum_over_traits != sum_over_pop_state:
         raise ValueError('There is a difference in the population sizes. Sum over all traits gives {}, whereas sum over the population state gives {}'.format(sum_over_traits,sum_over_pop_state))
@@ -881,13 +878,12 @@ def debug_trait_dict():
     
     """
     for trait, trait_dict in count['trait'].items():
-        dict_sum = sum(trait_dict[1].values())
+        dict_sum = np.sum(list(trait_dict[1].values()))
         if dict_sum != trait_dict[0]:
             raise ValueError('The trait {} was updated incorrectly. Shown size is {}, but actual size is {}.'.format(trait,trait_dict[0],dict_sum) )
 
 if __name__ == "__main__":
     model_name = "Families"
-
     
     #Absolute dir the script is in. Needs to be changed manually if the file is moveed
     script_dir = r'/home/larocca/Dokumente/Simulationen/Diploid_Model_Two_Loci'
@@ -904,128 +900,159 @@ if __name__ == "__main__":
     t_start = time.clock()
     
     #set global variables
-    model['K'], K_changes = model['K_list'][0], 0
-    model['number_of_families'] = model['number_of_families_list'][0]
-    model['latest_family_index'] = model['number_of_families']
+    #if competition is switched off, constant rates are safed as global variables
+    if not model['competition']:
+        ind_birth_rate = spc.birth_rate(0,model)
+        ind_death_rate = spc.death_rate(0,model)
+        ind_competition = birth_rate - death_rate
     
     #check if runtime is big enough for changes in K
     if len(model['K_change']) > 0:
         if model['K_change'][-1] > model['t_max']:
             raise ValueError("The last changing time for K: {} is bigger than the total runtime: {}.".format([model['K_change'][-1]],model['t_max']))
     
-    #setup the gene distribution if necessary
-    if type(model['gene_distribution']) == list:
-        model['gene_distribution'] = list(np.random.randint(model['gene_distribution'][0],model['gene_distribution'][1]+1,model['gene_distribution'][2]))
-        model['number_of_loci'] = len(model['gene_distribution'])
-        model['chromosome_cuts'] = _chromosome_cuts(model['gene_distribution'],model['n_chromosome'])
-    #setup the mutation rate from the number of loci if necessary
-    if model['inv_mutation_rate'] == "per bp":
-        model['mutation_rate'] = sum(model['gene_distribution'])*model['mutation_rate']
-    #setup recombination rate from the number of loci if necessary
-    if "rec_rate" in model.keys():
-        model['rec_rate'] = sum(model['gene_distribution'])*model['rec_rate']
-        
-    #setup averaged stats per time list with empty averaged stats in it
-    empty_stats = {
-        'time': 0,
-        'pop_state' : {},
-        'active_families': 0,
-        'mutation_counter': 0,
-        'mutation_load': 0,
-        'number_false' : 0,
-        'number_of_types':0,
-        'fam_distribution': {}
-        }
-    
-    #build up empty averaged_stats_per_time liste iteratively in for loop
-    #to have an independent deepcopy of empty_stats dictionary as list entries
-    averaged_stats_per_time = []
-    for _ in range(model['t_max']+1):
-        averaged_stats_per_time.append(copy.deepcopy(empty_stats))
-        
-    #set the variable for a family check
-    family_check = 50
-    
-    run = 1
-    #Loop over the number of runs one wants to average over
-    while run <= model['num_runs']:        
-        #check if the run terminated succsessfully and ran to the end without the population gettin extinct before
-        terminated_successfully = True
-
-        #set run clock to zero
-        t_start_run = time.clock()
-        
-        # Load initial population and setup random times
-        count = setup_population()
-        
-        #compromized statistic that stores time and number of traits and makers
-        stats_per_time = [copy.deepcopy(extract_summerized_statistics())]
-                
-        # Run the main analysis up to some fixed time t_max and safe the statistics every *step* times
-        for t in range(0,model['t_max'],model['step']):
-            model['K'], K_changes = K_change(t,model['K'],K_changes)
-            while count['time'] <= t:
-                one_step_evolution()
-                if sum(count['pop_state'].values())==0:
-                    print('Population got extinct at time {}.'.format(count['time']))
-                    terminated_successfully = False
-                    break
-                elif 'stop' in count.keys():
-                    print('Evolution stopped at time {} with a total of {} individuals.'.format(count['time'],sum(count['pop_state'].values())))
-                    terminated_successfully = False
-                    break
-            if sum(count['pop_state'].values())==0:
-                terminated_successfully = False
-                break
-            if min(count['pop_state'].values()) < 0:
-                print('One population state got negative')
-                terminated_successfully = False
-                break
-            #every *family_check* steps check the family sizes and split them up eventually
-            #only if families matter to speed up runtime
-            if model['mating_scheme'][0] != "random":
-                if t % family_check == 0:
-                    check_family_sizes()
-                    debug_trait_dict()
-                    debug_population_size()
-            #extract summerized statistics to safe in file
-            stats_per_time.append(copy.deepcopy(extract_summerized_statistics()))
-            print('Process: {}% of run {}/{} at {} (X_t = {} for t={})'.format(t*100/model['t_max'],run,model['num_runs'],datetime.time(datetime.now()),sum(count['pop_state'].values()),t))
-
-        #get time difference for single run 
-        t_end_run = time.clock()
-        dt_run = t_end_run - t_start_run
-          
-        print('Evolution terminated successfully. At the final time t={} there were {} individuals alive. The simulation ran for {}.'.format(count['time'],sum(count['pop_state'].values()),display_time(dt_run)))
-    
-        if terminated_successfully:
-            #average over the runs and safe it in new list
-            for counter, (averaged_stats, summerized_stats) in enumerate(zip(averaged_stats_per_time,stats_per_time)):
-                averaged_stats_per_time[counter] = copy.deepcopy(build_up_averaged_statistics(averaged_stats,summerized_stats,model['num_runs']))
-            run += 1
-        
-        #don't reset the global variables in the last run
-        if run < model['num_runs']:
-            #reset global variables
-            model['K'], K_changes = model['K_list'][0], 0
-    
+    #----shortcut for several simulations with different n_loci for weekend run
+    #safe mutation and recombination rate (when deleting this part change the overwriting of model['mutation_rate'] below)
+    old_mutation_rate = model['mutation_rate']
+    old_rec_rate = model['rec_rate']
+    #[50,1000,2500],[300,1500,3000],[500,200,5000]
+    #[50,500,1500,2500,5000], [300,1000,2000,3000]
+    #[50,300,500,1000,1500,2000,2500,3000,5000]
+    for n_loci in [1000]:       
+#        model['number_of_families_list'] = n_families
+        model["initial_rel_quantity_per_family"] = 1/model['number_of_families_list'][0]
+#        n_loci = 1000
+        model['gene_distribution']=[500,10001,n_loci]
+     #----cut out this piece and shift everything below back after using shortcut
+     
+        #setup the gene distribution if necessary
+        if type(model['gene_distribution']) == list:
+            model['gene_distribution'] = list(np.random.randint(model['gene_distribution'][0],model['gene_distribution'][1]+1,model['gene_distribution'][2]))
+            model['number_of_loci'] = len(model['gene_distribution'])
+            model['chromosome_cuts'] = _chromosome_cuts(model['gene_distribution'],model['n_chromosome'])
+        #setup the mutation rate from the number of loci if necessary
+        if model['inv_mutation_rate'] == "per bp":
+            model['mutation_rate'] = np.sum(model['gene_distribution'])*old_mutation_rate
+        #setup recombination rate from the number of loci if necessary
+        if "rec_rate" in model.keys():
+            model['rec_rate'] = np.sum(model['gene_distribution'])*old_rec_rate
             
-    #get time difference for total simulation 
-    t_end = time.clock()
-    dt = t_end - t_start
-    
-    print('The total {}/{} simulations ran for {}.'.format(model['num_runs'],model['num_runs'],display_time(dt)))
-    print('The following parameters have been used:')
-    print(model)
-    
-    # Store list with locations after each round in a pickle file
-    rel_path = "out_analysis/data/statistic_{}(K={},nloci={},mating={},n_runs={}).pickle".format(
-            model_name,
-            model['K_list'],
-            model['number_of_loci'],
-            model['mating_scheme'],
-            model['num_runs']
-            )
-    abs_file_path = os.path.join(script_dir, rel_path)
-    with open(abs_file_path, "wb") as out_file:
-        pickle.dump(averaged_stats_per_time, out_file)
+        #setup averaged stats per time list with empty averaged stats in it
+        empty_stats = {
+            'time': 0,
+            'pop_state' : {},
+            'active_families': 0,
+            'mutation_counter': 0,
+            'mutation_load': 0,
+            'number_false' : 0,
+            'number_of_types':0,
+            'fam_distribution': {}
+            }
+        
+        #build up empty averaged_stats_per_time liste iteratively in for loop
+        #to have an independent deepcopy of empty_stats dictionary as list entries
+        averaged_stats_per_time = []
+        for _ in range(model['t_max']+1):
+            averaged_stats_per_time.append(copy.deepcopy(empty_stats))
+            
+        #set the variable for a family check every *family_check* steps
+        family_check = 50
+        
+        run = 1
+        #Loop over the number of runs one wants to average over
+        while run <= model['num_runs']:        
+            #check if the run terminated succsessfully and ran to the end without the population gettin extinct before
+            terminated_successfully = True
+            
+            #set global variables
+            model['K'], K_changes = model['K_list'][0], 0
+            model['number_of_families'] = model['number_of_families_list'][0]
+            model['latest_family_index'] = model['number_of_families']
+            
+            #set run clock to zero
+            t_start_run = time.clock()
+            
+            # Load initial population and setup random times
+            count = setup_population()
+            memory_space_shifts = [[0],[sys.getsizeof(count['trait'])]]
+            
+            #compromized statistic that stores time and number of traits and makers
+            stats_per_time = [copy.deepcopy(extract_summerized_statistics())]
+                    
+            # Run the main analysis up to some fixed time t_max and safe the statistics every *step* times
+            for t in range(0,model['t_max'],model['step']):
+                model['K'], K_changes = K_change(t,model['K'],K_changes)
+                while count['time'] <= t:
+                    one_step_evolution()
+                    if np.sum(list(count['pop_state'].values()))==0:
+                        print('Population got extinct at time {}.'.format(count['time']))
+                        terminated_successfully = False
+                        break
+                    elif 'stop' in count.keys():
+                        print('Evolution stopped at time {} with a total of {} individuals.'.format(count['time'],np.sum(list(count['pop_state'].values()))))
+                        terminated_successfully = False
+                        break
+                if np.sum(list(count['pop_state'].values()))==0:
+                    terminated_successfully = False
+                    break
+                if min(count['pop_state'].values()) < 0:
+                    print('One population state got negative')
+                    terminated_successfully = False
+                    break
+                #every *family_check* steps check the family sizes and split them up eventually
+                #only if families matter to speed up runtime
+                if model['mating_scheme'][0] != "random":
+                    if t % family_check == 0:
+                        check_family_sizes()
+                        debug_trait_dict()
+                        debug_population_size()
+                #extract summerized statistics to safe in file
+                stats_per_time.append(copy.deepcopy(extract_summerized_statistics()))
+                string_to_print = 'Subdictionary sizes: '
+                #copy count to free memory_space 
+                memory_space_trait = sys.getsizeof(count['trait'])
+                if memory_space_shifts[1][-1] != memory_space_trait:
+                    memory_space_shifts[0].append(t)
+                    memory_space_shifts[1].append(memory_space_trait)
+                
+                print('Process: {}% of run {}/{} (X_t = {} for t={})'.format(t*100/model['t_max'],run,model['num_runs'],np.sum(list(count['pop_state'].values())),t))
+
+                
+            #get time difference for single run 
+            t_end_run = time.clock()
+            dt_run = t_end_run - t_start_run
+              
+            print('Evolution terminated successfully. At the final time t={} there were {} individuals alive. The simulation ran for {}.'.format(count['time'],np.sum(list(count['pop_state'].values())),display_time(dt_run)))
+        
+            if terminated_successfully:
+                #average over the runs and safe it in new list
+                for counter, (averaged_stats, summerized_stats) in enumerate(zip(averaged_stats_per_time,stats_per_time)):
+                    averaged_stats_per_time[counter] = copy.deepcopy(build_up_averaged_statistics(averaged_stats,summerized_stats,model['num_runs']))
+                run += 1
+            
+            #don't reset the global variables in the last run
+            if run < model['num_runs']:
+                #reset global variables
+                model['K'], K_changes = model['K_list'][0], 0
+        
+                
+        #get time difference for total simulation 
+        t_end = time.clock()
+        dt = t_end - t_start
+        
+        print('The total {}/{} simulations ran for {}.'.format(model['num_runs'],model['num_runs'],display_time(dt)))
+        print('The following parameters have been used:')
+        print(model)
+        
+        # Store list with locations after each round in a pickle file
+        rel_path = "out_analysis/data/statistic_{}(K={},nloci={},mating={},n_runs={},family_sizes={}).pickle".format(
+                model_name,
+                model['K_list'],
+                model['number_of_loci'],
+                model['mating_scheme'],
+                model['num_runs'],
+                [int(K/num_fam) for K,num_fam in zip(model['K_list'],model['number_of_families_list'])]
+                )
+        abs_file_path = os.path.join(script_dir, rel_path)
+        with open(abs_file_path, "wb") as out_file:
+            pickle.dump(averaged_stats_per_time, out_file)

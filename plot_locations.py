@@ -149,7 +149,15 @@ def plot_something_over_time_two_axis(data, plotting_dict1, plotting_dict2, t_0=
 
     plt.show()
    
-def plot_something_over_time_three_axis(data, plotting_dict1, plotting_dict2, plotting_dict3, t_0=0, t_max=None, step=1, safe=None, ylim=None):
+def plot_something_over_time_three_axis(data, plotting_dict1, 
+                                        plotting_dict2, 
+                                        plotting_dict3, 
+                                        t_0=0, 
+                                        t_max=None, 
+                                        step=1, 
+                                        safe=None, 
+                                        ylim=None,
+                                        family_sizes = None):
     """Generic function to plot someting over time. The keys variable should be
     a list with first enty beeing the specification which plot one wants to realize
     and some additional arguments if necessary. The first plotting_dict will be plotted
@@ -157,7 +165,14 @@ def plot_something_over_time_three_axis(data, plotting_dict1, plotting_dict2, pl
     
 
     """
-    fig, ax1 = plt.subplots(figsize=(9.0,6.0))
+    
+    a_mut = 1
+    a_ill = 1
+    
+    #size_factor
+    s = 1
+    
+    fig, ax1 = plt.subplots(figsize=(s*9.0,s*6.0))
         
     #get list indices handed in boundary times
     index_low, index_high = pf.set_time_index(t_0,t_max,stats_by_time)
@@ -167,12 +182,15 @@ def plot_something_over_time_three_axis(data, plotting_dict1, plotting_dict2, pl
     time = list(range(index_low, index_high, step))
     
     #set x-lable to mating scheme
-    ax1.set_xlabel('Mating scheme: {}'.format(model['mating_scheme'][0]))
+#    x_label = 'Mating scheme: {}'.format(_get_name_from_mating_scheme())
+    if family_sizes != None:
+        x_label = '\n average family size: {}'.format(family_sizes[1])
+    ax1.set_xlabel(x_label)
     
     #set color map
     colors = sns.color_palette('BrBG', len(plotting_dict1))
     ax1.set_prop_cycle('color',colors)
-
+#    ax1.set_prop_cycle(color=['k'],alpha=[.5],linewidth=[s])
         
     for specification, plotting_function in plotting_dict1.items():
             plotting_function(data,specification,time,index_low,index_high,step,ax1)
@@ -183,6 +201,7 @@ def plot_something_over_time_three_axis(data, plotting_dict1, plotting_dict2, pl
     #set color map
     colors = sns.color_palette('coolwarm', len(plotting_dict2))
     ax2.set_prop_cycle('color',colors)
+#    ax2.set_prop_cycle(alpha=[a_ill],linewidth=[s])
 
 
     for specification, plotting_function in plotting_dict2.items():
@@ -194,7 +213,7 @@ def plot_something_over_time_three_axis(data, plotting_dict1, plotting_dict2, pl
     #set color map
     colors = sns.color_palette('bright', len(plotting_dict3))
     ax3.set_prop_cycle('color',colors)
-
+#    ax3.set_prop_cycle(alpha=[a_mut],linewidth=[s])
 
     for specification, plotting_function in plotting_dict3.items():
             plotting_function(data,specification,time,index_low,index_high,step,ax3)
@@ -216,43 +235,104 @@ def plot_something_over_time_three_axis(data, plotting_dict1, plotting_dict2, pl
         ax.spines['right'].set_position(('data',t_max))
         # Die untere Diagrammachse auf den Bezugspunkt '0' der y-Achse legen:
         ax.spines['bottom'].set_position(('data',0))
+        # untere Achse keine ticks
+#        ax.set_xticks([])
+    
+#        
+#    ax1.set_xlabel('time',fontsize=11*s)
+#    ax1.xaxis.set_label_coords(0.95,-0.015)
         
-    #Achse 1 unsichtbar machen
+#    Achse 1 unsichtbar machen
     ax1.axes.get_yaxis().set_visible(False)
+    
+    #Total Population Achsenbeschriftung
+#    a_total = 0
+#    ax1.set_yticks([500,10000])
+#    ax1.set_yticklabels(['500','10.000'], alpha=a_total, fontsize=11*s)
+#    ax1.tick_params(axis='y',length=0, pad=10)
+
+    #add vertical line for 'now'
+#    a_now = 0 #alpha wert für an/aus
+#    t = 15500
+#    ax1.axvline(x=t, color='r',alpha=a_now, linewidth = 2*s)
+#    ax1.set_xticks([t-(10000+2020),t-2020,t+(10000-2020),t+(20000-2020),t+(30000-2020)])
+#    ax1.set_xticklabels(['-10.000','0','10.000','20.000','30.000'], color='k',alpha=1, fontsize=11*s)
+#    ax1.tick_params(axis='x',length=9, pad=10)
+#    ax1.text(t-850,-300,"now",fontsize=11*s, color='r',alpha=a_now)
+    
+    #rechte Achse
+#    color_ill = list(plotting_dict2.keys())[0][2]
+    ax2.set_ylim(0,0.053)
+#    ax2.set_yticks([0.01,0.02,0.03,0.04,0.05])
+#    ax2.set_yticklabels(['1%','2%','3%','4%','5%'], alpha=a_ill, fontsize=13*s, color=color_ill)
+#    ax2.tick_params(axis='y',length=0, pad=10)
+#    ax1.spines['left'].set_color('none')
+#    ax3.spines['left'].set_color('none')
+#    ax2.spines['left'].set_color(color_ill)
+#    ax2.spines['left'].set_linewidth(3)
+    
+    #rechte Achse (für Differenzenplot)
+#    ax2.set_ylim(-0.0325,0.0325)
+#    ax2.set_yticks([-0.03,-0.02,-0.01,0.01,0.02,0.03])
+#    ax2.set_yticklabels(['-3%','-2%','-1%','1%','2%','3%'], alpha=a_ill, fontsize=11*s, color=color_ill)
+#    ax2.tick_params(axis='y',length=0, pad=10)
+
+    #rechte Achse (für Quotient)
+#    ax2.set_ylim(0,3.1)
+#    ax2.set_yticks([1,2,3])
+#    ax2.set_yticklabels(['1x','2x','3x'], alpha=a_ill, fontsize=13*s, color=color_ill)
+#    ax2.tick_params(axis='y',length=0, pad=10)
+    
+    #linke Achse
+#    color_mut = list(plotting_dict3.keys())[0][2]
+    ax3.set_ylim(0,8.53)
+#    ax3.set_yticks([1,2,3,4,5,6,7,8])
+#    ax3.set_yticklabels(['1','2','3','4','5','6','7','8'], alpha=a_mut, fontsize=13*s, color=color_mut)
+#    ax3.tick_params(axis='y',length=0, pad=10)
+#    if a_mut != 0:
+#        ax3.spines['right'].set_color(color_mut)
+#        ax3.spines['right'].set_linewidth(3)
     
     #abs. Grenze für zweite Achse setzen
     if ylim != None:
         ax2.set_ylim(0,ylim)
         
     #show legend
-    ax1.legend(
-            loc='lower center', 
-            bbox_to_anchor=(0.5,1),
-            fontsize=9,
-            edgecolor='None'
-            )    
-    
-    #show legend
-    ax2.legend(
-            loc='lower left', 
-            bbox_to_anchor=(0,1),
-            fontsize=9,
-            edgecolor='None'
-            )    
-    
-    #show legend
-    ax3.legend(
-            loc='lower right', 
-            bbox_to_anchor=(1,1),
-            fontsize=9,
-            edgecolor='None'
-            )    
+#    ax1.legend(
+#            loc='lower center', 
+#            bbox_to_anchor=(0.5,1),
+#            fontsize=s*9,
+#            edgecolor='None'
+#            )    
+#    
+#    if a_ill != 0:
+#        #show legend
+#        ax2.legend(
+#                loc='lower left', 
+#                bbox_to_anchor=(0,1),
+#                fontsize=s*9,
+#                edgecolor='None'
+#                )    
+#    
+#    if a_mut != 0:
+#        #show legend
+#        ax3.legend(
+#                loc='lower right', 
+#                bbox_to_anchor=(1,1),
+#                fontsize=s*9,
+#                edgecolor='None'
+#                )    
 
     fig.tight_layout()
     
     #safe figure
-    if not safe==None:
-        _safe_fig(safe,t_0,t_max,step)
+#    if not safe==None:
+#        _safe_fig(safe,t_0,t_max,step,family_sizes)
+    
+    path = "Consang_family_size{}(same_ax).pdf".format(family_sizes)
+    
+    plt.savefig(os.path.join(r'/home/larocca/Dokumente/Simulationen/Diploid_Model_Two_Loci/out_analysis/Paper_Krawitz',
+                                 path), transparent=True)
 
     plt.show()
     
@@ -276,8 +356,11 @@ def _get_averages_different_parameters(parameters_K_tmax,parameters_n_loci,data_
     """Retruns a dictionary with (x,y):z entries where z is the averaged parameter.
     
     """
+    total = len(parameters_K_tmax)*len(parameters_n_loci)
+    run = 0
+    
     averages = {}
-    for K, t_max in parameters_K:
+    for K, t_max in parameters_K_tmax:
         for n_loci in parameters_n_loci:
             #    #set model parameters manually
             model['K_list'] = [K]
@@ -285,23 +368,36 @@ def _get_averages_different_parameters(parameters_K_tmax,parameters_n_loci,data_
             model['number_of_loci'] = n_loci
 
             #set the relativ path
-            rel_path = "out_analysis/data/statistic_{}(K={},nloci={},mating={},n_runs={}).pickle".format(
+            rel_path = "out_analysis/data/statistic_{}(K={},nloci={},mating={},n_runs={}".format(
                     model_name,
                     model['K_list'],
                     model['number_of_loci'],
                     model['mating_scheme'],
                     model['num_runs']
                     )
+            if model['mating_scheme'][0] == 'consang':
+                rel_path += ",family_sizes=[100]).pickle"
+            else:
+                rel_path += ").pickle"
             # Load locations from pickle file
             abs_file_path = os.path.join(script_dir, rel_path)
-            with open(abs_file_path, "rb") as in_file:
-                stats_by_time = pickle.load(in_file)
-                
-            averages[(K,n_loci)] = _get_average(pf.get_data_over_pop_size(stats_by_time,data_type),int(t_max/2),int(t_max))
+            try:
+                with open(abs_file_path, "rb") as in_file:
+                    stats_by_time = pickle.load(in_file)
+                    
+                averages[(K,n_loci)] = _get_average(pf.get_data_over_pop_size(stats_by_time,data_type),int(t_max/2),int(t_max))
+            except FileNotFoundError:
+                averages[(K,n_loci)] = None
+            
+            #Print status to console
+            run += 1
+            print('Loading data: {}% ...please wait.'.format(int(100*(run/total))))
+            
+    print('Loading complete.')
             
     return averages
 
-def plot_averages(averages_dict,x_axis,safe=False):
+def plot_averages(averages_dict,x_axis,data_type,safe=False):
     """Plots the generated averages on the y axis and the different equ. pop_sizes on the 
     x axis. Different n_loci are displayed as different colors if the x_axis lable is set to pop_size.
     Instead if x_axis is n_loci it is the other way around.
@@ -318,7 +414,7 @@ def plot_averages(averages_dict,x_axis,safe=False):
         color_palette = 'OrRd_d'
         axis_title = "Number of Genes"
         legend_title = 'Equilibrium Population Size'
-        tick_rotation = 'horizontal'
+        tick_rotation = 30
     else:
         raise ValueError('Handed in x Lable is unknown: {}'.format(x_axis))
     
@@ -330,7 +426,12 @@ def plot_averages(averages_dict,x_axis,safe=False):
     ax.spines['bottom'].set_position(('data',0))
     #Titel setzten
     ax.set_xlabel(axis_title)
-    ax.set_ylabel('Equilibrium Relative Mutation Load')
+    if data_type == 'number_false':
+        ax.set_ylabel('Equilibrium % of ill individual')
+    elif data_type == 'mutation_load':
+        ax.set_ylabel('Equilibrium Relative Mutation Load')
+    else:
+        raise ValueError('Add y-Axis lable for the new data_type *{}* before plotting.'.format(data_type))
     
     #get the set of all parameters
     parameter_set = set()
@@ -376,7 +477,7 @@ def plot_averages(averages_dict,x_axis,safe=False):
             )        
     
     if safe:
-        path = "Eq_Mutation_Load_vs_{}.pdf".format(x_axis)
+        path = "Eq_{}_vs_{}_{}.pdf".format(data_type,x_axis,_get_name_from_mating_scheme())
         #safe image 
         plt.savefig(os.path.join(r'/home/larocca/Dokumente/Simulationen/Diploid_Model_Two_Loci/out_analysis/figures',
                                      path))
@@ -674,18 +775,11 @@ def _get_word_from_integer(n):
     else:
         raise ValueError('Cannot convert {} into word'.format(n))
         
-def _safe_fig(title,t_0,t_max,step):
+def _safe_fig(title,t_0,t_max,step,family_sizes):
     """Safes the figure with the respective title.
     
     """
-    if model['mating_scheme'][0] == 'dynasty':
-        mating_scheme = 'dynasty(nmr={})'.format(model['mating_scheme'][1])
-    elif model['mating_scheme'][0] == 'random':
-        mating_scheme = 'random'
-    elif model['mating_scheme'][0] == 'western':
-        mating_scheme = 'western(mr={})'.format(model['mating_scheme'][1])
-    else:
-        raise ValueError('Mating scheme *{}* in _safe_fig unknown.'.format(model['mating_scheme'][0]))
+    mating_scheme = _get_name_from_mating_scheme()
             
 #    initial_state = '({}x{},{})'.format(model['number_of_families'],int(model['K_list'][0]*model['initial_rel_quantity_per_family']),int(model['K_list'][0]*model['initial_rel_mutation_load']))
     path = "{}_{}(K={},n_loci={}".format(title,mating_scheme,model['K_list'],model['number_of_loci'])
@@ -698,11 +792,30 @@ def _safe_fig(title,t_0,t_max,step):
         path += ',n_run={}'.format(model['num_runs'])
     if step != 1:
         path += ',step={}'.format(step)
+    if family_sizes != None:
+        path += ' ,family_sizes={}'.format(family_sizes)
         
     path += ').pdf'
     #safe image 
     plt.savefig(os.path.join(r'/home/larocca/Dokumente/Simulationen/Diploid_Model_Two_Loci/out_analysis/figures',
                                  path))
+
+def _get_name_from_mating_scheme():
+    """Returns the mating scheme as a string variable from the global model variable
+    
+    """
+    if model['mating_scheme'][0] == 'dynasty':
+        return 'dynasty(nmr={})'.format(model['mating_scheme'][1])
+    elif model['mating_scheme'][0] == 'random':
+        return 'random'
+    elif model['mating_scheme'][0] == 'western':
+        return 'western(mr={})'.format(model['mating_scheme'][1])
+    elif model['mating_scheme'][0] == 'consang':
+        return 'consanguin({},{},{},{})'.format(model['mating_scheme'][1],model['mating_scheme'][2],model['mating_scheme'][3],model['mating_scheme'][4])
+    elif model['mating_scheme'][0] == '%in_out_family':
+        return '{}%infamily_{}%outfamily'.format(model['mating_scheme'][1],model['mating_scheme'][2])
+    else:
+        raise ValueError('Mating scheme *{}* in _safe_fig unknown.'.format(model['mating_scheme'][0]))
         
 if __name__ == "__main__":
     #Remember to manually set the model name also in plotting_functions.py
@@ -727,34 +840,94 @@ if __name__ == "__main__":
             (5000,25000),
             (10000,30000),
             (20000,35000),
-            (50000,70000)]
+            (50000,70000),
+            (100000,100000)]
     
-    parameters_n_loci = [300,500,1000,1500,2000,2500,3000]
+    parameters_n_loci = [50,300,500,1000,1500,2000,2500,3000,5000]
     
 #    #set model parameters manually
-    model['K_list'] = [10000]
-    model['t_max'] = 30000
+    model['K_list'] = [500,10000]
+    model['t_max'] = 50000
 #    model['initial_rel_mutation_load'] = 12
 #    model['initial_rel_quantity_per_family'] = 0.0002
 #    model['inv_mutation_rate'] = 'per bp'
+    
 #    model['mating_scheme'] = ['western',0.01]
 #    model['mating_scheme'] = ['dynasty',0.1]
-    model['mating_scheme'] = ['random']
-    model['num_runs'] = 1
-    model['number_of_loci'] = 1500    
+#    model['mating_scheme'] = ['random']
+    model['mating_scheme'] = ['consang',1,0,0,0]
     
+    model['num_runs'] = 5
+    model['number_of_loci'] = 1000
+#    model['number_of_families_list'] = [1,20]   #[[5,100],[10,200],[15,300],[20,400],[25,500],[50,1000]]
+#    family_sizes = [int(K/num_fam) for K,num_fam in zip(model['K_list'],model['number_of_families_list'])]
+    family_sizes = [100,100]
+    
+#----vvvvvv--------------    
+
     #set the relativ path
-    rel_path = "out_analysis/data/statistic_{}(K={},nloci={},mating={},n_runs={}).pickle".format(
-            model_name,
-            model['K_list'],
-            model['number_of_loci'],
-            model['mating_scheme'],
-            model['num_runs']
-            )
-    # Load locations from pickle file
-    abs_file_path = os.path.join(script_dir, rel_path)
-    with open(abs_file_path, "rb") as in_file:
-        stats_by_time = pickle.load(in_file)
+#    rel_path = "out_analysis/data/statistic_{}(K={},nloci={},mating={},n_runs={}".format(
+#            model_name,
+#            model['K_list'],
+#            model['number_of_loci'],
+#            model['mating_scheme'],
+#            model['num_runs']
+#            )
+#    if family_sizes != None:
+#        rel_path += ',family_sizes={}).pickle'.format(family_sizes)
+#    else:
+#        rel_path += ').pickle'
+#
+#    # Load locations from pickle file
+#    abs_file_path = os.path.join(script_dir, rel_path)
+#    with open(abs_file_path, "rb") as in_file:
+#        stats_by_time = pickle.load(in_file)
+
+#---Fraction-vvv--------------------
+
+#    data = {}
+#    
+#    for mating_scheme in [['random'],['consang',1,0,0,0]]:
+#        #set the relativ path
+#        rel_path = "out_analysis/data/statistic_{}(K={},nloci={},mating={},n_runs={}".format(
+#                model_name,
+#                model['K_list'],
+#                model['number_of_loci'],
+#                mating_scheme,
+#                model['num_runs']
+#                )
+#        if family_sizes != None:
+#            rel_path += ',family_sizes={}).pickle'.format(family_sizes)
+#        else:
+#            rel_path += ').pickle'
+#            
+#        # Load locations from pickle file
+#        abs_file_path = os.path.join(script_dir, rel_path)
+#        with open(abs_file_path, "rb") as in_file:
+#            data[mating_scheme[0]] = pickle.load(in_file)
+#            
+#    stats_by_time = []
+#
+#    for t in range(len(data['random'])):
+#        ill_random = data['random'][t]['number_false']
+#        pop_size_random = sum(data['random'][t]['pop_state'].values())
+#        ill_consang = data['consang'][t]['number_false']
+#        pop_size_consang = sum(data['consang'][t]['pop_state'].values())
+#        
+#        if ill_random == 0:
+#            nf = 10
+#        else:
+#            nf = (ill_consang/pop_size_consang)/(ill_random/pop_size_random)
+#                        
+#        stats_by_time.append({
+#                'pop_state': data['consang'][t]['pop_state'],
+#                'mutation_load': data['random'][t]['mutation_load'],
+##                'number_false': (ill_consang/pop_size_consang) - (ill_random/pop_size_random)
+#                'number_false': nf
+#
+#                })
+
+#----------------------------------------    
                 
     #import model specific functions such as birthrate, mutation operator and probabilities, etc.
     spc = importlib.import_module('model_specifications.{}'.format(model_name))
@@ -785,20 +958,21 @@ if __name__ == "__main__":
     
     plot_dict_data = {
 #            ('mutation_load','Mutation load','r'):_plot_data,
-#            ('number_false', 'Number of ill individual','orange',None):_plot_data,
+#            ('number_false', 'consanguin - random','#fbb900',None, False):_plot_data,
+            ('number_false', 'consanguin / random','#2a7e1d',None, False):_plot_data,
 #            ('number_of_types','Number of different family-types','g',None): _plot_data,
 #            ('mutation_counter', 'Total umber of mutation','g'):_plot_data,
-             ('active_families','# families alive','lightgrey',None):_plot_data,
+#             ('active_families','# families alive','lightgrey',None):_plot_data,
             }
     
     # key : data_type, label, color, marker, average_line // value : function
     plot_dict_data_rel2 = {
-            ('mutation_load','Relative mutation load','r',None,True):_plot_data_over_pop_size,
+            ('mutation_load','Relative mutation load','#FF0000',None,False):_plot_data_over_pop_size,
 #            ('bla','Relative Entropy of family sizes','b',None):_plot_rel_entropy,
             }
     
     plot_dict_data_rel1 = {
-            ('number_false','% of ill individual','orange',None,False):_plot_data_over_pop_size,
+            ('number_false','% of diseased individual','#FFA500',None,False):_plot_data_over_pop_size,
 #            ('bla','Relative Entropy of family sizes','b',None):_plot_rel_entropy,
             }
 #choose title
@@ -811,16 +985,42 @@ if __name__ == "__main__":
     tmax, stepp = None, 1
 #    tmax, stepp = 2500, 1
     
-#    plot_something_over_time_three_axis(stats_by_time,plot_dict_abs,plot_dict_data_rel1,plot_dict_data_rel2,safe=title)
+#    plot_something_over_time_three_axis(stats_by_time,plot_dict_abs,plot_dict_data_rel1,plot_dict_data_rel2,family_sizes=family_sizes)
 #    plot_something_over_time_two_axis(stats_by_time,plot_dict_data,plot_dict_data_rel1,safe=title)
 #    plot_something_over_time_one_axis(stats_by_time,plot_dict_data_rel)
 #    plot_something_over_time_one_axis(stats_by_time,plot_dict_abs)   
+   
+#-----------------------------------------------------------------------------------------------------------------------
     
-#    averages = _get_averages_different_parameters(parameters_K,parameters_n_loci,'mutation_load')
+    #or "number_false" or "mutation_load"
+#    model['mating_scheme'] = ['random']
+#    model['mating_scheme'] = ['consang',1,0,0,0]
+#    data_type = 'number_false'
+#    averages = _get_averages_different_parameters(parameters_K,parameters_n_loci,data_type)
+#    
+#    # Store list with locations after each round in a pickle file
+#    rel_path = "out_analysis/data/averages_per_pop_size_nloci({}_{})".format(data_type,model['mating_scheme'][0])
+#    abs_file_path = os.path.join(script_dir, rel_path)
+#    with open(abs_file_path, "wb") as out_file:
+#        pickle.dump(averages, out_file)
+#
+#        
+#    #Or "n_loci" or "pop_size"
+#    plot_averages(averages,"pop_size",data_type,safe=True)
+#    plot_averages(averages,"n_loci",data_type,safe=True)
+#    
+#    print('Done plotting')
     
-    print('Done loading data')
     
-    #Or "n_loci" or "pop_size"
-    plot_averages(averages,"n_loci",safe=True)
     
-    print('Done plotting')
+      # Load locations from pickle file
+    data_type = "mutation_load"
+    model['mating_scheme'][0] = "random"
+    rel_path = "out_analysis/data/averages_per_pop_size_nloci({}_{}).pickle".format(data_type,model['mating_scheme'][0])
+    abs_file_path = os.path.join(script_dir, rel_path)
+    with open(abs_file_path, "rb") as in_file:
+        averages = pickle.load(in_file)
+        
+    print(averages)
+  
+    
