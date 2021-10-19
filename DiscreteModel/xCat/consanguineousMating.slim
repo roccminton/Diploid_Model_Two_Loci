@@ -1,0 +1,144 @@
+initialize() {
+	i=readFile("~/scratch/index2.txt"); //get the index for the seed; need to check if same simulation run with previous seed
+   i=asInteger(i);
+   setSeed(i);
+	initializeSLiMOptions(keepPedigrees=T); // keep Pedigrees for relatedness function
+	
+	//length of 22 chromosomes
+	c_length = c(2490, 2422, 1983, 1902, 1815, 1708, 1593, 1451, 1384, 1338, 1351, 1333, 1144, 1070, 1020, 903, 833, 803, 586, 644, 467, 508) * 1e5;	
+	
+	//create vector with endpoints of chromosomes
+	ends = cumSum(c_length);
+	
+	// m1 mutationtype: neutral
+	initializeMutationType("m1", 0.5, "f", 0.0);
+	
+	// m2 mutationtype: deletirious
+	initializeMutationType("m2", 0.0, "f", -1.0);
+	
+	// create genomic elements: g1 -> gene, g2 -> no gene
+	initializeGenomicElementType("g1", c(1,2), c(8,1)); //ratio between neutral and deleterious mutation is 8:1
+	initializeGenomicElementType("g2", 2, 0); //no mutations
+	
+	m1.color = "pink";
+	m2.color = "green";
+	g1.color="blue";
+	g2.color="#D0F0FF";
+	
+	start=readFile("~/start.txt"); //vector with startpionts of the genes and the non-coding parts
+	start=asInteger(start);
+	defineConstant("START", start);
+
+	end=readFile("~/end.txt"); //vector with endpoints
+	end=asInteger(end);
+	defineConstant("END", end);
+
+	genomicType=readFile("~/genomicType.txt"); //vector with genomic types 
+	genomicType=asInteger(genomicType);
+	
+	mutationRate=readFile("~/mutationRate.txt"); //vector with mutationsrates 
+	mutationRate=asFloat(mutationRate);
+	
+	// make genomic types with specified mutationrates
+	for(i in seqAlong(genomicType)){
+		initializeGenomicElement(genomicType[i],start[i],end[i]);
+	}
+	initializeMutationRate(mutationRate,end);
+	
+	//recombination rate is constant over all bp
+	rates=rep(1e-8,22); 
+	initializeRecombinationRate(rates,ends);
+
+	//define constants
+	defineConstant("N0", 500); //size of starting population
+	defineConstant("K", 10000); //maximal size of population
+	defineConstant("r", 0.1); //growth rate
+	defineConstant("C0", (K-N0)/N0);
+	defineConstant("simID", getSeed()); //Seed of this run
+	
+	
+	//create two sexes
+	initializeSex("A");
+}
+
+// make population with N0 individuals
+1 {
+	sim.addSubpop("p1", N0);
+}
+
+
+
+//------------------------------------------------------------------------------------------------------------------
+//calculate number of mutation load and ill individuals/prevalence, and save the data after every generation
+//------------------------------------------------------------------------------------------------------------------
+1 early(){ //header of table
+	writeFile("~/consanguineousMating_"+ getSeed() + ".txt", "generation,populationsize,mutation load,prevalence",append=T);
+}
+
+// get data over 2000 generations
+1:2000 {
+	muts=sum(p1.individuals.countOfMutationsOfType(m2)); //number of all deleterious mutations
+	mutationload=muts/p1.individualCount; //mutation load
+	ills=p1.individualCount-p1.individualCount*mean(p1.cachedFitness(NULL)); //ill individuals	
+	writeFile("~/consanguineousMating_" + getSeed() + ".txt", (sim.generation +","+p1.individualCount+","+mutationload+","+ills),append=T);
+}
+
+
+//------------------------------------------------------------------------------------------------------------------
+//population growth and mateChoice
+//------------------------------------------------------------------------------------------------------------------
+
+//calculation new populationsize with logistic growth
+501:2000 {
+	newSize=asInteger(round(K/(1+C0*exp(-r*(sim.generation-500)))));
+	p1.setSubpopulationSize(newSize);
+}
+
+//consanguineous mating scheme:
+2:2000 mateChoice() {
+	relatedness = individual.relatedness(sourceSubpop.individuals);
+
+	if (rbinom(1, 1, 0.8) == 0)
+		return weights * asInteger(relatedness==0.0); //choses a nonrelative mate with degree 0.2
+		
+	else if (rbinom(1, 1, 0.625) == 1)
+		return weights * asInteger(relatedness==0.25); //choses a relative with degree 0.25
+		
+	else
+		return weights * asInteger(relatedness==0.125); //choses a relative with degree 0.125
+}
+
+
+
+//------------------------------------------------------------------------------------------------------------------
+//compound-heterozygotie
+//------------------------------------------------------------------------------------------------------------------
+1:2000 late() {
+	
+	// Loop over individuals and figure out the fitness of each one holistically
+	for (ind in p1.individuals)
+	{
+		// get the positions of all m2 mutations in each of the two genomes
+		g1pos = ind.genome1.mutationsOfType(m2).position;
+		g2pos = ind.genome2.mutationsOfType(m2).position;
+		
+		if ((length(g1pos) > 0) & (length(g2pos) > 0)){ // in both genomes are mutations (m2)
+	
+			// use sapply() to find the index of the gene for each position
+			g1elem = sapply(g1pos, "whichMax(applyValue <= END);");
+			g2elem = sapply(g2pos, "whichMax(applyValue <= END);");
+			
+			// unique down the gene indexes since multiple mutations in the same gene are irrelevant
+			g1elem = unique(g1elem);
+			g2elem = unique(g2elem);
+			
+			// find the intersection of the gene indexes hit on the two genomes
+			// which genes have in both genomes the mutation m2
+			elemsHitInBoth = setIntersection(g1elem, g2elem); 
+			
+			// if a gene was hit on both genomes, fitness is 0.0 (1.0 is the default)
+			if (size(elemsHitInBoth) > 0)
+				ind.fitnessScaling = 0.0;
+		}
+	}
+}
