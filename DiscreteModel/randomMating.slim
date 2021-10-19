@@ -1,7 +1,4 @@
 initialize() {
-	i=readFile("~/index.txt"); //get the index for the seed; need to check if same simulation run with previous seed
-   i=asInteger(i);
-   setSeed(i);
 	initializeSLiMOptions(keepPedigrees=T); // keep Pedigrees for relatedness function
 	
 	//length of 22 chromosomes
